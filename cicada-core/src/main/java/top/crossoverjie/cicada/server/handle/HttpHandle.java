@@ -5,6 +5,7 @@ import io.netty.buffer.Unpooled;
 import io.netty.channel.ChannelHandlerContext;
 import io.netty.channel.ChannelInboundHandlerAdapter;
 import io.netty.handler.codec.http.*;
+import io.netty.handler.codec.http.multipart.*;
 import io.netty.util.CharsetUtil;
 import org.slf4j.Logger;
 import top.crossoverjie.cicada.server.action.WorkAction;
@@ -19,6 +20,8 @@ import top.crossoverjie.cicada.server.util.ClassScanner;
 import top.crossoverjie.cicada.server.util.LoggerBuilder;
 import top.crossoverjie.cicada.server.util.PathUtil;
 
+import java.io.File;
+import java.io.IOException;
 import java.net.URLDecoder;
 import java.util.ArrayList;
 import java.util.List;
@@ -35,11 +38,23 @@ public class HttpHandle extends ChannelInboundHandlerAdapter {
 
     private final static Logger LOGGER = LoggerBuilder.getLogger(HttpHandle.class);
 
+    private static final HttpDataFactory factory =
+            new DefaultHttpDataFactory(DefaultHttpDataFactory.MINSIZE);
+
+    private HttpPostRequestDecoder decoder;
+
+    static {
+        DiskFileUpload.deleteOnExitTemporaryFile = true; //should delete file on exit
+
+        DiskFileUpload.baseDirectory = null;
+    }
+
     @Override
     public void channelRead(ChannelHandlerContext ctx, Object msg) throws Exception {
 
         if (msg instanceof DefaultHttpRequest) {
             DefaultHttpRequest request = (DefaultHttpRequest) msg;
+
 
             // interceptor cache
             List<CicadaInterceptor> interceptors = new ArrayList<>() ;
@@ -47,6 +62,9 @@ public class HttpHandle extends ChannelInboundHandlerAdapter {
             // request uri
             String uri = request.uri();
             QueryStringDecoder queryStringDecoder = new QueryStringDecoder(URLDecoder.decode(request.uri(), "utf-8"));
+
+            //is file upload
+            if(isUpload(queryStringDecoder,request)) return;
 
             // check Root Path
             AppConfig appConfig = checkRootPath(uri, queryStringDecoder);
@@ -72,8 +90,104 @@ public class HttpHandle extends ChannelInboundHandlerAdapter {
             // Response
             responseMsg(ctx, execute);
 
+        }else if(msg instanceof DefaultHttpContent){
+            LOGGER.info("upload start------------------------------------------");
+            parseFileData((DefaultHttpContent) msg,ctx);
         }
 
+    }
+
+    private boolean isUpload(QueryStringDecoder queryStringDecoder,DefaultHttpRequest request){
+
+        String actionPath = PathUtil.getActionPath(queryStringDecoder.path());
+
+        if(actionPath.startsWith("upload") && request.method().equals(HttpMethod.POST)){
+
+            decoder = new HttpPostRequestDecoder(factory, request);
+
+            return true;
+        }
+
+        return false;
+    }
+
+
+    private void parseFileData(DefaultHttpContent content,ChannelHandlerContext ctx){
+        if(decoder!=null){
+
+            WorkRes workRes = new WorkRes() ;
+            workRes.setCode(String.valueOf(HttpResponseStatus.NOT_FOUND.code()));
+            workRes.setMessage(HttpResponseStatus.NOT_FOUND.toString());
+
+            decoder.offer(content);
+
+            readHttpDataChunk();
+
+            if(content instanceof DefaultLastHttpContent){
+                workRes.setCode(String.valueOf(HttpResponseStatus.OK.code()));
+                workRes.setMessage(HttpResponseStatus.OK.toString());
+                responseMsg(ctx, workRes);
+                reset();
+            }
+        }
+    }
+
+    private void reset(){
+        decoder.destroy();
+        decoder = null;
+    }
+
+    /**
+     * Example of reading request by chunk and getting values from chunk to chunk
+     */
+    private void readHttpDataChunk(){
+
+        try {
+            while (decoder.hasNext()){
+
+                LOGGER.info("read data------------------------------------------");
+                InterfaceHttpData data = decoder.next();
+
+                if(data!=null){
+                    try {
+                        writeHttpData(data);
+                    } finally {
+                        data.release();
+                    }
+                }
+            }
+        } catch (HttpPostRequestDecoder.EndOfDataDecoderException e) {
+            //end
+            e.printStackTrace();
+        }
+
+    }
+
+
+    private void writeHttpData(InterfaceHttpData data){
+
+        if(data.getHttpDataType() == InterfaceHttpData.HttpDataType.FileUpload){
+            FileUpload fileUpload = (FileUpload) data;
+            if (fileUpload.isCompleted()) {
+
+                String tempDir = System.getProperty("user.home") + File.separator+ "upload" + File.separator;
+                File dir = new File(tempDir);
+
+                if(!dir.exists()){
+                    dir.mkdir();
+                }
+                File dest = new File(dir, fileUpload.getFilename());
+
+                LOGGER.info("file name :"+dest.getName());
+
+                try {
+                    fileUpload.renameTo(dest);
+                } catch (IOException e) {
+                    e.printStackTrace();
+                }
+            }
+
+        }
     }
 
     /**

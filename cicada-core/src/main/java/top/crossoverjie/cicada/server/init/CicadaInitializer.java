@@ -2,6 +2,7 @@ package top.crossoverjie.cicada.server.init;
 
 import io.netty.channel.Channel;
 import io.netty.channel.ChannelInitializer;
+import io.netty.handler.codec.http.HttpContentCompressor;
 import io.netty.handler.codec.http.HttpRequestDecoder;
 import io.netty.handler.codec.http.HttpResponseEncoder;
 import io.netty.handler.logging.LogLevel;
@@ -21,6 +22,7 @@ public class CicadaInitializer extends ChannelInitializer<Channel> {
         ch.pipeline()
                 .addLast(new HttpRequestDecoder())
                 .addLast(new HttpResponseEncoder())
+                .addLast("compressor",new HttpContentCompressor())
                 .addLast(new HttpHandle())
                 .addLast("logging", new LoggingHandler(LogLevel.INFO));
     }
