@@ -31,8 +31,7 @@
 - [x] 灵活的传参方式。
 - [x] `json` 响应格式。
 - [x] 自定义配置。
-- [ ] 多种路由风格。
-- [ ] `HTTPS` 支持。
+- [x] 多种响应方式。
 - [ ] `Cookie` 支持。
 - [ ] 文件上传。
 
@@ -45,7 +44,7 @@
 <dependency>
     <groupId>top.crossoverjie.opensource</groupId>
     <artifactId>cicada-core</artifactId>
-    <version>1.0.2</version>
+    <version>1.0.3</version>
 </dependency>
 ```
 
@@ -74,7 +73,7 @@ public class DemoAction implements WorkAction {
     private static AtomicLong index = new AtomicLong() ;
 
     @Override
-    public WorkRes<DemoResVO> execute(Param paramMap) throws Exception {
+    public void execute(CicadaContext context,Param paramMap) throws Exception {
         String name = paramMap.getString("name");
         Integer id = paramMap.getInteger("id");
         LOGGER.info("name=[{}],id=[{}]" , name,id);
@@ -85,7 +84,7 @@ public class DemoAction implements WorkAction {
         res.setCode(StatusEnum.SUCCESS.getCode());
         res.setMessage(StatusEnum.SUCCESS.getMessage());
         res.setDataBody(demoResVO) ;
-        return res;
+        context.json(res);
     }
 
 }
@@ -102,6 +101,28 @@ public class DemoAction implements WorkAction {
     "message": "成功"
 }
 ```
+
+## Cicada 上下文
+
+通过 `context.json(),context.text()` 方法可以选择不同的响应方式。
+
+```java
+@CicadaAction("textAction")
+public class TextAction implements WorkAction {
+    @Override
+    public void execute(CicadaContext context, Param param) throws Exception {
+        String url = context.request().getUrl();
+        String method = context.request().getMethod();
+        context.text("hello world url=" + url + " method=" + method);
+    }
+}
+```
+
+![](https://ws1.sinaimg.cn/large/006tNbRwly1fvxvvo8yioj313i0tudij.jpg)
+
+同时也可以根据 `context.request()` 获得请求上下文中的其他信息。
+
+![](https://ws2.sinaimg.cn/large/006tNbRwly1fvxvxmpsjcj30yy0yo77h.jpg)
 
 ## 自定义配置
 
@@ -218,6 +239,13 @@ public class LoggerInterceptorAbstract extends AbstractCicadaInterceptorAdapter 
 
 ## 更新记录
 
+### v1.0.3
+
+- 修复 [#9](https://github.com/TogetherOS/cicada/issues/9)
+- 修复 [#8](https://github.com/TogetherOS/cicada/issues/8),多种响应方式。
+- 重构了核心代码，新增上下文环境。
+- 优雅停机。
+
 ### v1.0.2
 
 - 修复 [#6](https://github.com/TogetherOS/cicada/issues/6)
@@ -232,3 +260,7 @@ public class LoggerInterceptorAbstract extends AbstractCicadaInterceptorAdapter 
 
 <img src="https://ws2.sinaimg.cn/large/006tKfTcly1fsa01u7ro1j30gs0howfq.jpg" width="300"/> 
 
+## 特别感谢
+
+- [Netty](https://github.com/netty/netty)
+- [blade](https://github.com/lets-blade/blade)

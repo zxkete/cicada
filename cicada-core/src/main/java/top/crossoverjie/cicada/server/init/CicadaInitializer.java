@@ -7,7 +7,7 @@ import io.netty.handler.codec.http.HttpRequestDecoder;
 import io.netty.handler.codec.http.HttpResponseEncoder;
 import io.netty.handler.logging.LogLevel;
 import io.netty.handler.logging.LoggingHandler;
-import top.crossoverjie.cicada.server.handle.HttpHandle;
+import top.crossoverjie.cicada.server.handle.HttpDispatcher;
 
 /**
  * Function:
@@ -22,8 +22,7 @@ public class CicadaInitializer extends ChannelInitializer<Channel> {
         ch.pipeline()
                 .addLast(new HttpRequestDecoder())
                 .addLast(new HttpResponseEncoder())
-                .addLast("compressor",new HttpContentCompressor())
-                .addLast(new HttpHandle())
+                .addLast(new HttpDispatcher())
                 .addLast("logging", new LoggingHandler(LogLevel.INFO));
     }
 }
